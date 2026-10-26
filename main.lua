@@ -1,5 +1,5 @@
 -- ============================================
--- AUTO SKILL CHECK + ESP (ULTIMATE HUB)
+-- AUTO SKILL CHECK + ESP (LIGHTWEIGHT OPTIMIZED)
 -- Violence District
 -- ============================================
 
@@ -20,8 +20,6 @@ local PlayerGui            = LocalPlayer:WaitForChild("PlayerGui")
 -- ==========================================
 local AutoSkillEnabled = false 
 local CurrentMode = "Legit"
-local HeartbeatConnection = nil
-local VisibilityConnection = nil
 
 local WINDOWS = {
     Legit   = {start = 106, stop = 112}, 
@@ -63,9 +61,7 @@ local ESP_Settings = {
     PalletColor    = Color3.fromRGB(255, 140, 0),
 }
 
-local PLAYER_SCAN_INTERVAL  = 1.5
-local STATIC_SCAN_INTERVAL  = 5.0
-local ROLE_CHECK_INTERVAL   = 1.0
+local RENDER_DISTANCE = 500 -- Jarak maksimal objek ESP dirender (Studs)
 local GEN_PROGRESS_INTERVAL = 0.25
 -- ==========================================
 
@@ -99,22 +95,15 @@ end
 local MainGui = Instance.new("ScreenGui")
 MainGui.Name = "SkillCheckHub"
 MainGui.ResetOnSpawn = false
+MainGui.IgnoreGuiInset = true 
 MainGui.DisplayOrder = 999999 
 
 local success = pcall(function()
-    if gethui then
-        MainGui.Parent = gethui()
-    elseif syn and syn.protect_gui then
-        syn.protect_gui(MainGui)
-        MainGui.Parent = CoreGui
-    else
-        MainGui.Parent = CoreGui
-    end
+    if gethui then MainGui.Parent = gethui()
+    elseif syn and syn.protect_gui then syn.protect_gui(MainGui); MainGui.Parent = CoreGui
+    else MainGui.Parent = CoreGui end
 end)
-
-if not success or not MainGui.Parent then
-    MainGui.Parent = PlayerGui
-end
+if not success or not MainGui.Parent then MainGui.Parent = PlayerGui end
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Size = UDim2.new(0, 380, 0, 220)
@@ -127,12 +116,13 @@ MainFrame.ZIndex = 1
 MainFrame.Parent = MainGui
 AddCorner(MainFrame, UDim.new(0, 10))
 
--- Sidebar (Kiri)
+-- Sidebar
 local Sidebar = Instance.new("Frame")
 Sidebar.Size = UDim2.new(0, 100, 1, 0)
 Sidebar.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
 Sidebar.BorderSizePixel = 0
-Sidebar.ZIndex = 2
+Sidebar.Active = false
+Sidebar.ZIndex = 10 
 Sidebar.Parent = MainFrame
 AddCorner(Sidebar, UDim.new(0, 10))
 
@@ -143,53 +133,37 @@ Title.Text = "Menu"
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.Font = Enum.Font.GothamBold
 Title.TextSize = 16
-Title.ZIndex = 3
+Title.ZIndex = 11
 Title.Parent = Sidebar
 
-local TabSkillBtn = Instance.new("TextButton")
-TabSkillBtn.Selectable = false
-TabSkillBtn.Size = UDim2.new(1, -20, 0, 35)
-TabSkillBtn.Position = UDim2.new(0, 10, 0, 40)
+local function CreateTabBtn(text, yPos)
+    local btn = Instance.new("TextButton")
+    btn.Selectable = false
+    btn.Size = UDim2.new(1, -20, 0, 35)
+    btn.Position = UDim2.new(0, 10, 0, yPos)
+    btn.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+    btn.Text = text
+    btn.TextColor3 = Color3.fromRGB(150, 150, 150)
+    btn.Font = Enum.Font.GothamMedium
+    btn.TextSize = 13
+    btn.ZIndex = 11
+    btn.Parent = Sidebar
+    AddCorner(btn, UDim.new(0, 6))
+    return btn
+end
+
+local TabSkillBtn = CreateTabBtn("Skill Check", 40)
 TabSkillBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
-TabSkillBtn.Text = "Skill Check"
 TabSkillBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-TabSkillBtn.Font = Enum.Font.GothamMedium
-TabSkillBtn.TextSize = 13
-TabSkillBtn.ZIndex = 3
-TabSkillBtn.Parent = Sidebar
-AddCorner(TabSkillBtn, UDim.new(0, 6))
+local TabEspBtn = CreateTabBtn("ESP", 80)
+local TabSettingBtn = CreateTabBtn("Setting", 120)
 
-local TabEspBtn = Instance.new("TextButton")
-TabEspBtn.Selectable = false
-TabEspBtn.Size = UDim2.new(1, -20, 0, 35)
-TabEspBtn.Position = UDim2.new(0, 10, 0, 80)
-TabEspBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
-TabEspBtn.Text = "ESP"
-TabEspBtn.TextColor3 = Color3.fromRGB(150, 150, 150)
-TabEspBtn.Font = Enum.Font.GothamMedium
-TabEspBtn.TextSize = 13
-TabEspBtn.ZIndex = 3
-TabEspBtn.Parent = Sidebar
-AddCorner(TabEspBtn, UDim.new(0, 6))
-
-local TabSettingBtn = Instance.new("TextButton")
-TabSettingBtn.Selectable = false
-TabSettingBtn.Size = UDim2.new(1, -20, 0, 35)
-TabSettingBtn.Position = UDim2.new(0, 10, 0, 120)
-TabSettingBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
-TabSettingBtn.Text = "Setting"
-TabSettingBtn.TextColor3 = Color3.fromRGB(150, 150, 150)
-TabSettingBtn.Font = Enum.Font.GothamMedium
-TabSettingBtn.TextSize = 13
-TabSettingBtn.ZIndex = 3
-TabSettingBtn.Parent = Sidebar
-AddCorner(TabSettingBtn, UDim.new(0, 6))
-
--- Area Konten (Kanan)
+-- Area Konten
 local Content = Instance.new("Frame")
 Content.Size = UDim2.new(1, -110, 1, -20)
 Content.Position = UDim2.new(0, 105, 0, 10)
 Content.BackgroundTransparency = 1
+Content.Active = false
 Content.ZIndex = 2
 Content.Parent = MainFrame
 
@@ -199,6 +173,7 @@ Content.Parent = MainFrame
 local SkillPage = Instance.new("Frame")
 SkillPage.Size = UDim2.new(1, 0, 1, 0)
 SkillPage.BackgroundTransparency = 1
+SkillPage.Active = false
 SkillPage.ZIndex = 3
 SkillPage.Parent = Content
 
@@ -206,6 +181,7 @@ local ToggleFrame = Instance.new("Frame")
 ToggleFrame.Size = UDim2.new(1, 0, 0, 40)
 ToggleFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
 ToggleFrame.BorderSizePixel = 0
+ToggleFrame.Active = false
 ToggleFrame.ZIndex = 4
 ToggleFrame.Parent = SkillPage
 AddCorner(ToggleFrame, UDim.new(0, 6))
@@ -246,12 +222,12 @@ ToggleBtn.Text = ""
 ToggleBtn.ZIndex = 7
 ToggleBtn.Parent = SwitchBg
 
--- Dropdown Mode
 local DropdownFrame = Instance.new("Frame")
 DropdownFrame.Size = UDim2.new(1, 0, 0, 40)
 DropdownFrame.Position = UDim2.new(0, 0, 0, 50)
 DropdownFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
 DropdownFrame.BorderSizePixel = 0
+DropdownFrame.Active = false
 DropdownFrame.ZIndex = 4
 DropdownFrame.Parent = SkillPage
 AddCorner(DropdownFrame, UDim.new(0, 6))
@@ -294,6 +270,7 @@ OptionsList.Position = UDim2.new(0, 0, 0, 45)
 OptionsList.BackgroundColor3 = Color3.fromRGB(30, 30, 36)
 OptionsList.BorderSizePixel = 0
 OptionsList.Visible = false
+OptionsList.Active = false
 OptionsList.ZIndex = 20 
 OptionsList.Parent = DropdownFrame
 AddCorner(OptionsList, UDim.new(0, 6))
@@ -357,6 +334,7 @@ UpdateDropdownUI()
 local EspPage = Instance.new("Frame")
 EspPage.Size = UDim2.new(1, 0, 1, 0)
 EspPage.BackgroundTransparency = 1
+EspPage.Active = false
 EspPage.Visible = false
 EspPage.ZIndex = 3
 EspPage.Parent = Content
@@ -365,6 +343,7 @@ local EspToggleFrame = Instance.new("Frame")
 EspToggleFrame.Size = UDim2.new(1, 0, 0, 40)
 EspToggleFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
 EspToggleFrame.BorderSizePixel = 0
+EspToggleFrame.Active = false
 EspToggleFrame.ZIndex = 4
 EspToggleFrame.Parent = EspPage
 AddCorner(EspToggleFrame, UDim.new(0, 6))
@@ -406,11 +385,12 @@ EspToggleBtn.ZIndex = 7
 EspToggleBtn.Parent = EspSwitchBg
 
 -- ==========================================
--- 📄 HALAMAN 3: SETTING (CONFIG & UNLOAD)
+-- 📄 HALAMAN 3: SETTING
 -- ==========================================
 local SettingPage = Instance.new("ScrollingFrame")
 SettingPage.Size = UDim2.new(1, 0, 1, 0)
 SettingPage.BackgroundTransparency = 1
+SettingPage.Active = false
 SettingPage.Visible = false
 SettingPage.ZIndex = 3
 SettingPage.CanvasSize = UDim2.new(0, 0, 0, 480)
@@ -448,7 +428,6 @@ local function CreateSettingRow(order, textLabel)
     return row, txt
 end
 
--- 1. Config Name
 local ConfigNameRow = CreateSettingRow(1, "Config Name")
 local ConfigNameBox = Instance.new("TextBox")
 ConfigNameBox.ClearTextOnFocus = false
@@ -463,7 +442,6 @@ ConfigNameBox.ZIndex = 6
 ConfigNameBox.Parent = ConfigNameRow
 AddCorner(ConfigNameBox, UDim.new(0, 4))
 
--- 2. Select Config (Dropdown)
 local SelectRow = CreateSettingRow(2, "Select Config")
 local SelectLabel = Instance.new("TextLabel")
 SelectLabel.Size = UDim2.new(0, 100, 1, 0)
@@ -481,6 +459,7 @@ local ConfigOptionsFrame = Instance.new("Frame")
 ConfigOptionsFrame.Size = UDim2.new(1, 0, 0, 0)
 ConfigOptionsFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 ConfigOptionsFrame.Visible = false
+ConfigOptionsFrame.Active = false
 ConfigOptionsFrame.ZIndex = 100
 ConfigOptionsFrame.Parent = Content
 AddCorner(ConfigOptionsFrame, UDim.new(0, 6))
@@ -501,17 +480,12 @@ SelectRow.MouseButton1Click:Connect(function()
     end
 end)
 
--- 3. Action Buttons
 local RefreshRow = CreateSettingRow(3, "Refresh List")
 local SaveRow = CreateSettingRow(4, "Save Config")
 local LoadRow = CreateSettingRow(5, "Load Config")
 local RemoveRow = CreateSettingRow(6, "Remove Config")
 
--- 4. Auto Load Toggle
 local AutoLoadRow = CreateSettingRow(7, "Auto Load on Start")
-local AutoLoadLbl = AutoLoadRow:FindFirstChild("TextLabel")
-AutoLoadLbl.Size = UDim2.new(1, -80, 1, 0)
-
 local AutoLoadSwitchBg = Instance.new("Frame")
 AutoLoadSwitchBg.Size = UDim2.new(0, 36, 0, 20)
 AutoLoadSwitchBg.Position = UDim2.new(1, -46, 0.5, -10)
@@ -528,7 +502,6 @@ AutoLoadKnob.ZIndex = 6
 AutoLoadKnob.Parent = AutoLoadSwitchBg
 AddCorner(AutoLoadKnob, UDim.new(1, 0))
 
--- 5. Unload Button
 local UnloadBtn = Instance.new("TextButton")
 UnloadBtn.Selectable = false
 UnloadBtn.Size = UDim2.new(1, 0, 0, 35)
@@ -537,7 +510,7 @@ UnloadBtn.Text = "Unload Script"
 UnloadBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 UnloadBtn.Font = Enum.Font.GothamBold
 UnloadBtn.TextSize = 13
-UnloadBtn.ZIndex = 4
+UnloadBtn.ZIndex = 10
 UnloadBtn.LayoutOrder = 8
 UnloadBtn.Parent = SettingPage
 AddCorner(UnloadBtn, UDim.new(0, 6))
@@ -545,32 +518,16 @@ AddCorner(UnloadBtn, UDim.new(0, 6))
 -- ==========================================
 -- 🔄 LOGIKA CONFIG SYSTEM
 -- ==========================================
-
 local function SetAutoLoad(configName, state)
-    if state then
-        pcall(function()
-            writefile(ConfigFolder .. "/_autoload.txt", configName) 
-        end)
-    else
-        pcall(function()
-            if isfile(ConfigFolder .. "/_autoload.txt") then
-                delfile(ConfigFolder .. "/_autoload.txt")
-            end
-        end)
-    end
+    if state then pcall(function() writefile(ConfigFolder .. "/_autoload.txt", configName) end)
+    else pcall(function() if isfile(ConfigFolder .. "/_autoload.txt") then delfile(ConfigFolder .. "/_autoload.txt") end end) end
 end
 
 local function SaveCurrentConfig()
     local configName = ConfigNameBox.Text
-    if configName == "" or configName == "None" then
-        configName = "default"
-    end
-    
+    if configName == "" or configName == "None" then configName = "default" end
     local path = ConfigFolder .. "/" .. configName .. ".json"
-    local dataToSave = {
-        Mode = CurrentMode,
-        AutoSkill = AutoSkillEnabled
-    }
+    local dataToSave = { Mode = CurrentMode, AutoSkill = AutoSkillEnabled }
     
     pcall(function()
         writefile(path, game:GetService("HttpService"):JSONEncode(dataToSave))
@@ -582,34 +539,18 @@ local function SaveCurrentConfig()
 end
 
 local function LoadSelectedConfig()
-    if ActiveConfigName == "None" or ActiveConfigName == "" then
-        return 
-    end
-    
+    if ActiveConfigName == "None" or ActiveConfigName == "" then return end
     local path = ConfigFolder .. "/" .. ActiveConfigName .. ".json"
-    
     if isfile(path) then
-        local successRead, data = pcall(function()
-            return game:GetService("HttpService"):JSONDecode(readfile(path))
-        end)
-        
+        local successRead, data = pcall(function() return game:GetService("HttpService"):JSONDecode(readfile(path)) end)
         if successRead and data then
             CurrentMode = data.Mode or "Legit"
             UpdateDropdownUI()
-            
             AutoSkillEnabled = data.AutoSkill or false
-            
             local targetColor = AutoSkillEnabled and Color3.fromRGB(80, 200, 120) or Color3.fromRGB(80, 80, 80)
             local targetPos = AutoSkillEnabled and UDim2.new(1, -20, 0.5, -9) or UDim2.new(0, 2, 0.5, -9)
-            
             SwitchBg.BackgroundColor3 = targetColor
             SwitchKnob.Position = targetPos
-            
-            if not AutoSkillEnabled and HeartbeatConnection then
-                HeartbeatConnection:Disconnect()
-                HeartbeatConnection = nil
-            end
-            
             ShowNotification("Config", "Loaded: " .. ActiveConfigName)
         end
     end
@@ -617,15 +558,9 @@ end
 
 function RefreshConfigList()
     for _, child in pairs(ConfigOptionsFrame:GetChildren()) do
-        if child:IsA("TextButton") then
-            child:Destroy()
-        end
+        if child:IsA("TextButton") then child:Destroy() end
     end
-    
-    local success, files = pcall(function()
-        return listfiles(ConfigFolder) 
-    end)
-    
+    local success, files = pcall(function() return listfiles(ConfigFolder) end)
     if success and files then
         for _, file in pairs(files) do
             local name = file:match("([^/\\]+)%.json$")
@@ -640,15 +575,12 @@ function RefreshConfigList()
                 btn.TextSize = 12
                 btn.ZIndex = 101
                 btn.Parent = ConfigOptionsFrame
-                
                 btn.MouseButton1Click:Connect(function()
                     ActiveConfigName = name
                     SelectLabel.Text = name .. "  v"
                     ConfigNameBox.Text = name
                     ConfigOptionsFrame.Visible = false
-                    if AutoLoadEnabled then
-                        SetAutoLoad(name, true) 
-                    end
+                    if AutoLoadEnabled then SetAutoLoad(name, true) end
                 end)
             end
         end
@@ -656,16 +588,12 @@ function RefreshConfigList()
 end
 
 local function RemoveConfig()
-    if ActiveConfigName == "None" then
-        return 
-    end
-    
+    if ActiveConfigName == "None" then return end
     local path = ConfigFolder .. "/" .. ActiveConfigName .. ".json"
     if isfile(path) then
         pcall(function()
             delfile(path)
             ShowNotification("Config", "Removed: " .. ActiveConfigName)
-            
             if isfile(ConfigFolder .. "/_autoload.txt") then
                 local autoName = readfile(ConfigFolder .. "/_autoload.txt")
                 if autoName == ActiveConfigName then
@@ -675,7 +603,6 @@ local function RemoveConfig()
                     AutoLoadKnob.Position = UDim2.new(0, 2, 0.5, -8)
                 end
             end
-
             ActiveConfigName = "None"
             SelectLabel.Text = "None  v"
             ConfigNameBox.Text = "default"
@@ -684,11 +611,7 @@ local function RemoveConfig()
     end
 end
 
-RefreshRow.MouseButton1Click:Connect(function()
-    RefreshConfigList()
-    ShowNotification("Config", "List Refreshed")
-end)
-
+RefreshRow.MouseButton1Click:Connect(function() RefreshConfigList(); ShowNotification("Config", "List Refreshed") end)
 SaveRow.MouseButton1Click:Connect(SaveCurrentConfig)
 LoadRow.MouseButton1Click:Connect(LoadSelectedConfig)
 RemoveRow.MouseButton1Click:Connect(RemoveConfig)
@@ -697,26 +620,20 @@ AutoLoadRow.MouseButton1Click:Connect(function()
     AutoLoadEnabled = not AutoLoadEnabled
     local targetColor = AutoLoadEnabled and Color3.fromRGB(80, 200, 120) or Color3.fromRGB(80, 80, 80)
     local targetPos = AutoLoadEnabled and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8)
-    
     TweenService:Create(AutoLoadSwitchBg, TweenInfo.new(0.2), {BackgroundColor3 = targetColor}):Play()
     TweenService:Create(AutoLoadKnob, TweenInfo.new(0.2), {Position = targetPos}):Play()
-    
-    if ActiveConfigName ~= "None" then
-        SetAutoLoad(ActiveConfigName, AutoLoadEnabled) 
-    end
+    if ActiveConfigName ~= "None" then SetAutoLoad(ActiveConfigName, AutoLoadEnabled) end
 end)
 
 task.spawn(function()
     task.wait(1)
     RefreshConfigList()
-    
     if isfile(ConfigFolder .. "/_autoload.txt") then
         local autoName = readfile(ConfigFolder .. "/_autoload.txt")
         if autoName and autoName ~= "" then
             AutoLoadEnabled = true
             AutoLoadSwitchBg.BackgroundColor3 = Color3.fromRGB(80, 200, 120)
             AutoLoadKnob.Position = UDim2.new(1, -18, 0.5, -8)
-            
             ActiveConfigName = autoName
             SelectLabel.Text = ActiveConfigName .. "  v"
             ConfigNameBox.Text = ActiveConfigName
@@ -726,7 +643,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- 🔄 LOGIKA PINDAH TAB
+-- 🔄 LOGIKA PINDAH TAB & GUI
 -- ==========================================
 local function SwitchTab(tab)
     SkillPage.Visible = (tab == "Skill")
@@ -742,63 +659,18 @@ TabSkillBtn.MouseButton1Click:Connect(function() SwitchTab("Skill") end)
 TabEspBtn.MouseButton1Click:Connect(function() SwitchTab("ESP") end)
 TabSettingBtn.MouseButton1Click:Connect(function() SwitchTab("Setting") end)
 
--- ==========================================
--- 🧹 FUNGSI UNLOAD
--- ==========================================
-UnloadBtn.MouseButton1Click:Connect(function()
-    if HeartbeatConnection then
-        HeartbeatConnection:Disconnect()
-        HeartbeatConnection = nil
-    end
-    if VisibilityConnection then
-        VisibilityConnection:Disconnect()
-        VisibilityConnection = nil
-    end
-    
-    ESP_Active = false
-    for _, conn in pairs(ESP_Connections) do
-        pcall(function() conn:Disconnect() end)
-    end
-    for _, drawing in pairs(ESP_Drawings) do
-        pcall(function() drawing:Remove() end)
-    end
-    for _, h in pairs(ESP_Highlights) do
-        pcall(function() h:Destroy() end)
-    end
-    for _, b in pairs(ESP_Boxes) do
-        pcall(function() b:Destroy() end)
-    end
-    
-    if MainGui then
-        MainGui:Destroy() 
-    end
-    
-    ShowNotification("Auto Skill Check", "Script berhasil di-Unload.")
-end)
-
--- ==========================================
--- ⚙️ INTERAKSI GUI LAINNYA
--- ==========================================
-DropdownBtn.MouseButton1Click:Connect(function()
-    OptionsList.Visible = not OptionsList.Visible
-end)
+DropdownBtn.MouseButton1Click:Connect(function() OptionsList.Visible = not OptionsList.Visible end)
 
 ToggleBtn.MouseButton1Click:Connect(function()
     AutoSkillEnabled = not AutoSkillEnabled
     local targetColor = AutoSkillEnabled and Color3.fromRGB(80, 200, 120) or Color3.fromRGB(80, 80, 80)
     local targetPos = AutoSkillEnabled and UDim2.new(1, -20, 0.5, -9) or UDim2.new(0, 2, 0.5, -9)
-    
     TweenService:Create(SwitchBg, TweenInfo.new(0.2), {BackgroundColor3 = targetColor}):Play()
     TweenService:Create(SwitchKnob, TweenInfo.new(0.2), {Position = targetPos}):Play()
-    
-    if not AutoSkillEnabled and HeartbeatConnection then
-        HeartbeatConnection:Disconnect()
-        HeartbeatConnection = nil
-    end
 end)
 
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if input.KeyCode == Enum.KeyCode.RightAlt then
+    if input.KeyCode == Enum.KeyCode.RightAlt and MainGui then
         MainGui.Enabled = not MainGui.Enabled
     end
 end)
@@ -807,10 +679,12 @@ end)
 -- 🧠 LOGIKA UTAMA SKRIP (AUTO SKILL CHECK)
 -- ==========================================
 local function PressSpace()
-    pcall(function()
-        VirtualInputManager:SendKeyEvent(true,  Enum.KeyCode.Space, false, game)
-        task.wait(0.03)
-        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+    task.spawn(function()
+        pcall(function()
+            VirtualInputManager:SendKeyEvent(true,  Enum.KeyCode.Space, false, game)
+            task.wait(0.01)
+            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+        end)
     end)
 end
 
@@ -819,125 +693,120 @@ local function IsSurvivor()
     return t and t.Name:lower():find("survivor") ~= nil
 end
 
-local function Cleanup()
-    if HeartbeatConnection then
-        HeartbeatConnection:Disconnect()
-        HeartbeatConnection = nil
+local lastCheck = nil
+local hasPressed = false
+local lastGoalRotation = -999
+local SkillCheckConnection = nil
+
+-- CACHE: Menyimpan referensi Line & Goal agar tidak perlu melooping setiap frame
+local cachedLine, cachedGoal, cachedTrapPerfect, cachedTrapGoal = nil, nil, nil, nil
+
+local function OnSkillCheckFrame()
+    if not AutoSkillEnabled or not IsSurvivor() then
+        lastCheck = nil
+        hasPressed = false
+        lastGoalRotation = -999
+        return
     end
-    if VisibilityConnection then
-        VisibilityConnection:Disconnect()
-        VisibilityConnection = nil
+    
+    local prompt = PlayerGui:FindFirstChild("SkillCheckPromptGui")
+    if not prompt then return end
+    local check = prompt:FindFirstChild("Check")
+    
+    if not check or not check.Visible then
+        lastCheck = nil
+        hasPressed = false
+        return
+    end
+    
+    -- Hanya cari child jika Check berubah (Hemat CPU)
+    if lastCheck ~= check then
+        lastCheck = check
+        hasPressed = false
+        lastGoalRotation = -999
+        cachedLine = check:FindFirstChild("Line")
+        cachedGoal = check:FindFirstChild("Goal")
+        cachedTrapPerfect = check:FindFirstChild("TrapPerfect")
+        cachedTrapGoal = check:FindFirstChild("TrapGoal")
+    end
+    
+    if not cachedLine then return end
+    
+    local activeGoal = cachedGoal
+    if cachedTrapPerfect and cachedTrapPerfect.Visible then activeGoal = cachedTrapPerfect
+    elseif cachedTrapGoal and cachedTrapGoal.Visible then activeGoal = cachedTrapGoal end
+    
+    if not activeGoal then return end
+    
+    local gr = activeGoal.Rotation % 360
+    local lr = cachedLine.Rotation % 360
+    
+    -- Deteksi reset trap (Goal berpindah)
+    if lastGoalRotation ~= -999 and math.abs(gr - lastGoalRotation) > 1 then
+        hasPressed = false
+        lastGoalRotation = gr
+        return 
+    end
+    lastGoalRotation = gr
+    
+    local targetWindow = WINDOWS["Legit"]
+    if CurrentMode == "Random" then
+        targetWindow = math.random(1, 100) <= 40 and WINDOWS["Legit"] or WINDOWS["Normal"]
+    elseif CurrentMode == "Normal" then
+        targetWindow = WINDOWS["Normal"]
+    end
+    
+    local ss = (gr + targetWindow.start) % 360
+    local se = (gr + targetWindow.stop) % 360
+    
+    local hit = false
+    if ss > se then hit = (lr >= ss or lr <= se)
+    else hit = (lr >= ss and lr <= se) end
+    
+    if hit then
+        if not hasPressed then
+            PressSpace()
+            hasPressed = true
+        end
+    else
+        hasPressed = false
     end
 end
 
-local function AttachCheck(check)
-    if VisibilityConnection then
-        VisibilityConnection:Disconnect()
-    end
+SkillCheckConnection = RunService.RenderStepped:Connect(OnSkillCheckFrame)
 
-    VisibilityConnection = check:GetPropertyChangedSignal("Visible"):Connect(function()
-        if not (check.Visible and IsSurvivor() and AutoSkillEnabled) then
-            if HeartbeatConnection then
-                HeartbeatConnection:Disconnect()
-                HeartbeatConnection = nil
-            end
-            return
-        end
-
-        if HeartbeatConnection then
-            HeartbeatConnection:Disconnect()
-        end
-        
-        local targetWindow = WINDOWS["Legit"]
-        
-        if CurrentMode == "Random" then
-            if math.random(1, 100) <= 40 then
-                targetWindow = WINDOWS["Legit"]
-            else
-                targetWindow = WINDOWS["Normal"]
-            end
-        elseif CurrentMode == "Normal" then
-            targetWindow = WINDOWS["Normal"]
-        end
-
-        HeartbeatConnection = RunService.Heartbeat:Connect(function()
-            if not AutoSkillEnabled then return end
-
-            local line = check:FindFirstChild("Line")
-            local goal = check:FindFirstChild("Goal")
-            if not (line and goal) then return end
-
-            local lr = line.Rotation % 360
-            local gr = goal.Rotation % 360
-            
-            local ss, se = (gr + targetWindow.start) % 360, (gr + targetWindow.stop) % 360
-
-            local hit
-            if ss > se then
-                hit = (lr >= ss or lr <= se)
-            else
-                hit = (lr >= ss and lr <= se)
-            end
-
-            if hit then
-                PressSpace()
-                if HeartbeatConnection then
-                    HeartbeatConnection:Disconnect()
-                    HeartbeatConnection = nil
-                end
-            end
-        end)
-    end)
-end
-
-task.spawn(function()
-    while true do
-        local prompt = PlayerGui:WaitForChild("SkillCheckPromptGui", 30)
-        if prompt then
-            local check = prompt:WaitForChild("Check", 10)
-            if check then
-                AttachCheck(check)
-                prompt.AncestryChanged:Wait()
-            end
-        end
-        task.wait(0.5)
-    end
-end)
-
-LocalPlayer.CharacterAdded:Connect(function()
-    Cleanup()
-    task.wait(1)
+-- ==========================================
+-- 🧹 FUNGSI UNLOAD
+-- ==========================================
+UnloadBtn.MouseButton1Click:Connect(function()
+    if SkillCheckConnection then SkillCheckConnection:Disconnect() end
+    ESP_Active = false
+    for _, conn in pairs(ESP_Connections) do pcall(function() conn:Disconnect() end) end
+    for _, drawing in pairs(ESP_Drawings) do pcall(function() drawing:Remove() end) end
+    for _, h in pairs(ESP_Highlights) do pcall(function() h:Destroy() end) end
+    for _, b in pairs(ESP_Boxes) do pcall(function() b:Destroy() end) end
+    if MainGui then MainGui:Destroy() end
+    ShowNotification("Auto Skill Check", "Script berhasil di-Unload.")
 end)
 
 -- ==========================================
--- 👁️ LOGIKA ESP (DARI SCRIPT ANDA)
+-- 👁️ LOGIKA ESP (OPTIMIZED)
 -- ==========================================
 
 local function ClearESP()
-    ESP_Objects     = {}
-    GeneratorTexts  = {}
-    GeneratorData   = {}
-    PlayerRoleCache = {}
+    table.clear(ESP_Objects)
+    table.clear(GeneratorTexts)
+    table.clear(GeneratorData)
+    table.clear(PlayerRoleCache)
     
-    for _, conn in pairs(ESP_Connections) do
-        pcall(function() conn:Disconnect() end)
-    end
-    ESP_Connections = {}
-    
-    for _, drawing in pairs(ESP_Drawings) do
-        pcall(function() drawing:Remove() end)
-    end
-    ESP_Drawings = {}
-    
-    for _, h in pairs(ESP_Highlights) do
-        pcall(function() h:Destroy() end)
-    end
-    ESP_Highlights = {}
-    
-    for _, b in pairs(ESP_Boxes) do
-        pcall(function() b:Destroy() end)
-    end
-    ESP_Boxes = {}
+    for _, conn in pairs(ESP_Connections) do pcall(function() conn:Disconnect() end) end
+    table.clear(ESP_Connections)
+    for _, drawing in pairs(ESP_Drawings) do pcall(function() drawing:Remove() end) end
+    table.clear(ESP_Drawings)
+    for _, h in pairs(ESP_Highlights) do pcall(function() h:Destroy() end) end
+    table.clear(ESP_Highlights)
+    for _, b in pairs(ESP_Boxes) do pcall(function() b:Destroy() end) end
+    table.clear(ESP_Boxes)
 end
 
 local function StartESP()
@@ -969,10 +838,7 @@ local function StartESP()
                     if p:IsA("BasePart") and p.Transparency < 1 then
                         if not forceESP and p.Size.Magnitude > 100 then continue end
                         local vol = p.Size.X * p.Size.Y * p.Size.Z
-                        if vol > maxVol then
-                            maxVol = vol
-                            bestPart = p 
-                        end
+                        if vol > maxVol then maxVol = vol; bestPart = p end
                     end
                 end
             end
@@ -987,48 +853,15 @@ local function StartESP()
         local role = "unknown"
         if player.Team then
             local t = player.Team.Name:lower()
-            if t:find("killer",1,true) or t:find("murder",1,true) or t:find("butcher",1,true) or t:find("slasher",1,true) then 
-                role = "killer"
-            elseif t:find("survivor",1,true) or t:find("innocent",1,true) or t:find("runner",1,true) then 
-                role = "survivor" 
-            end
+            if t:find("killer",1,true) or t:find("murder",1,true) or t:find("butcher",1,true) or t:find("slasher",1,true) then role = "killer"
+            elseif t:find("survivor",1,true) or t:find("innocent",1,true) or t:find("runner",1,true) then role = "survivor" end
         end
         if role == "unknown" then
             local r = player:GetAttribute("Role") or player:GetAttribute("Team")
             if r then
                 local al = tostring(r):lower()
-                if al:find("kill",1,true) or al:find("murder",1,true) then
-                    role = "killer"
-                elseif al:find("surv",1,true) or al:find("innoc",1,true) then
-                    role = "survivor"
-                end
-            end
-        end
-        local char = player.Character
-        if char and role == "unknown" then
-            local r = char:GetAttribute("Role") or char:GetAttribute("Team")
-            if r then
-                local al = tostring(r):lower()
-                if al:find("kill",1,true) or al:find("murder",1,true) then
-                    role = "killer"
-                elseif al:find("surv",1,true) or al:find("innoc",1,true) then
-                    role = "survivor"
-                end
-            end
-        end
-        if char and role == "unknown" then
-            for _, obj in ipairs(char:GetDescendants()) do
-                if obj:IsA("TextLabel") or obj:IsA("TextButton") then
-                    local txt = (obj.Text or ""):lower()
-                    if txt:find("killer",1,true) or txt:find("murderer",1,true) then
-                        role = "killer"
-                        break
-                    end
-                    if txt:find("survivor",1,true) or txt:find("innocent",1,true) then
-                        role = "survivor"
-                        break
-                    end
-                end
+                if al:find("kill",1,true) or al:find("murder",1,true) then role = "killer"
+                elseif al:find("surv",1,true) or al:find("innoc",1,true) then role = "survivor" end
             end
         end
         return role
@@ -1048,32 +881,16 @@ local function StartESP()
         ESP_Objects[char] = { Highlight = createHighlight(char, roleToColor(role)), Player = player }
     end
 
-    local function scanPlayers()
-        for _, player in ipairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer and player.Character and not ESP_Objects[player.Character] then
-                addPlayerESP(player)
+    local function getGeneratorCenter(gen)
+        if gen.PrimaryPart then return gen.PrimaryPart.Position end
+        local best, maxVol = nil, 0
+        for _, p in ipairs(gen:GetDescendants()) do
+            if p:IsA("BasePart") and p.Transparency < 1 then
+                local vol = p.Size.X * p.Size.Y * p.Size.Z
+                if vol > maxVol then maxVol = vol; best = p end
             end
         end
-    end
-
-    local function updatePlayerRoles()
-        local now = os.clock()
-        for _, data in pairs(ESP_Objects) do
-            local p = data.Player
-            if p then
-                local cache = PlayerRoleCache[p]
-                if not cache or now - cache.t >= ROLE_CHECK_INTERVAL then
-                    local role = detectRole(p)
-                    PlayerRoleCache[p] = { role = role, t = now }
-                    local color = roleToColor(role)
-                    local h = data.Highlight
-                    if h and h.FillColor ~= color then
-                        h.FillColor = color
-                        h.OutlineColor = color
-                    end
-                end
-            end
-        end
+        return best and best.Position or gen:GetPivot().Position
     end
 
     local function getGeneratorProgress(gen)
@@ -1081,52 +898,15 @@ local function StartESP()
             local v = gen:GetAttribute(attr)
             if type(v) == "number" then
                 local pct = v <= 1 and (v * 100) or v
-                if pct >= 100 then return "DONE" end
-                return tostring(math.floor(pct))
-            end
-        end
-        for _, d in ipairs(gen:GetDescendants()) do
-            if d:IsA("NumberValue") or d:IsA("IntValue") then
-                local n = d.Name:lower()
-                if n:find("progress",1,true) or n:find("percent",1,true) or n:find("repair",1,true) then
-                    local v = tonumber(d.Value)
-                    if v then
-                        local pct = v <= 1 and (v * 100) or v
-                        if pct >= 100 then return "DONE" end
-                        return tostring(math.floor(pct))
-                    end
-                end
-            end
-            if d:IsA("TextLabel") and d.Text:find("%%") then
-                local s = d.Text:gsub("%%","")
-                local num = tonumber(s)
-                if num and num >= 100 then return "DONE" end
-                return s
+                return pct >= 100 and "DONE" or tostring(math.floor(pct))
             end
         end
         return "0"
     end
 
-    local function getGeneratorCenter(gen)
-        if gen.PrimaryPart then return gen.PrimaryPart.Position end
-        local best, maxVol = nil, 0
-        for _, p in ipairs(gen:GetDescendants()) do
-            if p:IsA("BasePart") and p.Transparency < 1 then
-                local vol = p.Size.X * p.Size.Y * p.Size.Z
-                if vol > maxVol then
-                    maxVol = vol
-                    best = p 
-                end
-            end
-        end
-        if best then return best.Position end
-        return gen:GetPivot().Position
-    end
-
     local function applyVaultBox(part)
         if not part or not part:IsA("BasePart") or ESP_Objects[part] then return end
-        if part.Name == "VaultTrigger" or part.Name:lower():find("inviswall",1,true) then return end
-        if part.Size.Magnitude > 100 then return end
+        if part.Name == "VaultTrigger" or part.Name:lower():find("inviswall",1,true) or part.Size.Magnitude > 100 then return end
         local box = Instance.new("BoxHandleAdornment")
         box.Name = "ESP_VaultBox"
         box.Adornee = part
@@ -1140,92 +920,108 @@ local function StartESP()
         ESP_Objects[part] = { Box = box }
     end
 
-    local function scanWorkspaceStatic()
-        -- Hanya memindai folder "Map" agar lobi tidak ikut ter-ESP
-        local mapFolder = Workspace:FindFirstChild("Map") or Workspace
-        for _, obj in ipairs(mapFolder:GetDescendants()) do
-            local class = obj.ClassName
-            if class == "Model" then
-                if not ESP_Objects[obj] then
-                    local lower = obj.Name:lower()
-                    if lower:find("generator",1,true) then
-                        addObjectESP(obj, ESP_Settings.GeneratorColor, false)
-                        if not GeneratorTexts[obj] then
-                            local txt = Drawing.new("Text")
-                            txt.Size = 24
-                            txt.Center = true
-                            txt.Outline = true
-                            txt.Font = 3
-                            txt.Color = ESP_Settings.TextColor
-                            txt.Text = "0%"
-                            txt.Visible = false
-                            GeneratorTexts[obj] = txt
-                            table.insert(ESP_Drawings, txt)
-                            GeneratorData[obj] = { center = getGeneratorCenter(obj), nextUpdate = 0 }
-                        end
-                    elseif lower:find("zombie",1,true) or lower:find("scp",1,true) or lower:find("minion",1,true) or lower:find("cure",1,true) then
-                        if obj:FindFirstChildOfClass("Humanoid") then
-                            ESP_Objects[obj] = { Highlight = createHighlight(obj, ESP_Settings.ZombieColor) }
-                        end
-                    elseif lower:find("bear trap",1,true) or lower:find("beartrap",1,true) or lower:find("butcher trap",1,true) then
-                        addObjectESP(obj, ESP_Settings.TrapColor, false)
-                    elseif lower:find("pallet",1,true) and not lower:find("crate",1,true) and not lower:find("v1",1,true) and not lower:find("v2",1,true) then
-                        addObjectESP(obj, ESP_Settings.PalletColor, false)
-                    elseif lower:find("window",1,true) then
-                        local hasTrigger = obj:FindFirstChild("VaultTrigger", true) ~= nil
-                        local hasPrompt  = false
-                        for _, d in ipairs(obj:GetDescendants()) do
-                            if d:IsA("ProximityPrompt") then 
-                                hasPrompt = true 
-                                break 
-                            end
-                        end
-                        if hasTrigger or hasPrompt then
-                            for _, part in ipairs(obj:GetDescendants()) do 
-                                applyVaultBox(part) 
-                            end
-                        end
+    -- [OPTIMASI] Fungsi tunggal untuk memproses objek map
+    local function processMapObject(obj)
+        if not ESP_Active then return end
+        if obj.ClassName == "Model" then
+            if not ESP_Objects[obj] then
+                local lower = obj.Name:lower()
+                if lower:find("generator",1,true) then
+                    addObjectESP(obj, ESP_Settings.GeneratorColor, false)
+                    if not GeneratorTexts[obj] then
+                        local txt = Drawing.new("Text")
+                        txt.Size = 20; txt.Center = true; txt.Outline = true; txt.Font = 3
+                        txt.Color = ESP_Settings.TextColor; txt.Text = "0%"; txt.Visible = false
+                        GeneratorTexts[obj] = txt
+                        table.insert(ESP_Drawings, txt)
+                        GeneratorData[obj] = { center = getGeneratorCenter(obj), nextUpdate = 0 }
                     end
+                elseif lower:find("zombie",1,true) or lower:find("scp",1,true) or lower:find("minion",1,true) or lower:find("cure",1,true) then
+                    if obj:FindFirstChildOfClass("Humanoid") then ESP_Objects[obj] = { Highlight = createHighlight(obj, ESP_Settings.ZombieColor) } end
+                elseif lower:find("bear trap",1,true) or lower:find("beartrap",1,true) or lower:find("butcher trap",1,true) then
+                    addObjectESP(obj, ESP_Settings.TrapColor, false)
+                elseif lower:find("pallet",1,true) and not lower:find("crate",1,true) then
+                    addObjectESP(obj, ESP_Settings.PalletColor, false)
+                elseif lower:find("window",1,true) then
+                    local hasTrigger = obj:FindFirstChild("VaultTrigger", true) ~= nil
+                    local hasPrompt  = false
+                    for _, d in ipairs(obj:GetDescendants()) do if d:IsA("ProximityPrompt") then hasPrompt = true; break end end
+                    if hasTrigger or hasPrompt then for _, part in ipairs(obj:GetDescendants()) do applyVaultBox(part) end end
                 end
-            elseif class == "Part" then
-                if not ESP_Objects[obj] then
-                    local lower = obj.Name:lower()
-                    if lower:find("bear trap",1,true) or lower:find("beartrap",1,true) or lower:find("butcher trap",1,true) then
-                        addObjectESP(obj, ESP_Settings.TrapColor, false)
-                    elseif obj.Name == "VaultTrigger" and obj.Parent then
-                        for _, p in ipairs(obj.Parent:GetDescendants()) do 
-                            applyVaultBox(p) 
-                        end
-                    end
-                end
-            elseif class == "ProximityPrompt" then
-                local text = ((obj.ActionText or "") .. " " .. (obj.ObjectText or "")):lower()
-                if text:find("vault",1,true) or text:find("climb",1,true) or text:find("jump",1,true) then
-                    local target = obj.Parent
-                    if target and target:IsA("BasePart") then 
-                        applyVaultBox(target)
-                    elseif target and target:IsA("Model") then
-                        for _, part in ipairs(target:GetDescendants()) do 
-                            applyVaultBox(part) 
-                        end
-                    end
+            end
+        elseif obj.ClassName == "Part" then
+            if not ESP_Objects[obj] then
+                local lower = obj.Name:lower()
+                if lower:find("bear trap",1,true) or lower:find("beartrap",1,true) or lower:find("butcher trap",1,true) then
+                    addObjectESP(obj, ESP_Settings.TrapColor, false)
+                elseif obj.Name == "VaultTrigger" and obj.Parent then
+                    for _, p in ipairs(obj.Parent:GetDescendants()) do applyVaultBox(p) end
                 end
             end
         end
     end
 
-    local renderConn = RunService.RenderStepped:Connect(function()
+    -- Scan Awal (Untuk objek yang sudah ada di map)
+    local mapFolder = Workspace:FindFirstChild("Map") or Workspace
+    for _, obj in ipairs(mapFolder:GetDescendants()) do processMapObject(obj) end
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and not ESP_Objects[player.Character] then addPlayerESP(player) end
+    end
+
+    -- [OPTIMASI BESAR] Gunakan Event bawaan Roblox, bukan While Loop!
+    table.insert(ESP_Connections, mapFolder.DescendantAdded:Connect(processMapObject))
+    
+    table.insert(ESP_Connections, mapFolder.DescendantRemoving:Connect(function(obj)
+        if ESP_Objects[obj] then
+            if ESP_Objects[obj].Highlight then ESP_Objects[obj].Highlight:Destroy() end
+            if ESP_Objects[obj].Box then ESP_Objects[obj].Box:Destroy() end
+            ESP_Objects[obj] = nil
+        end
+        if GeneratorTexts[obj] then
+            GeneratorTexts[obj]:Remove()
+            GeneratorTexts[obj] = nil
+            GeneratorData[obj] = nil
+        end
+    end))
+
+    table.insert(ESP_Connections, Players.PlayerAdded:Connect(function(player)
+        player.CharacterAdded:Connect(function()
+            task.wait(1)
+            if ESP_Active then addPlayerESP(player) end
+        end)
+    end))
+
+    table.insert(ESP_Connections, Players.PlayerRemoving:Connect(function(player)
+        if player.Character and ESP_Objects[player.Character] then
+            local data = ESP_Objects[player.Character]
+            if data.Highlight then data.Highlight:Destroy() end
+            ESP_Objects[player.Character] = nil
+        end
+        PlayerRoleCache[player] = nil
+    end))
+
+    -- Loop Render Teks Generator (Throttled / Diperlambat agar ringan)
+    local renderAccumulator = 0
+    table.insert(ESP_Connections, RunService.RenderStepped:Connect(function(dt)
         if not ESP_Active then return end
+        renderAccumulator = renderAccumulator + dt
+        if renderAccumulator < 0.05 then return end -- Render maks 20 FPS untuk teks (sangat ringan)
+        renderAccumulator = 0
+
         local cam = Workspace.CurrentCamera
         if not cam then return end
+        local camPos = cam.CFrame.Position
         local now = os.clock()
+
         for gen, txt in pairs(GeneratorTexts) do
             if gen and gen.Parent then
                 local gd = GeneratorData[gen]
-                if not gd then
-                    gd = { center = getGeneratorCenter(gen), nextUpdate = 0 }
-                    GeneratorData[gen] = gd
+                -- Jarak Check (Optimasi: Jangan render jika terlalu jauh)
+                if (camPos - gd.center).Magnitude > RENDER_DISTANCE then
+                    txt.Visible = false
+                    continue
                 end
+
                 local pos, onScreen = cam:WorldToViewportPoint(gd.center)
                 if onScreen then
                     txt.Visible = true
@@ -1235,78 +1031,49 @@ local function StartESP()
                         local prog = getGeneratorProgress(gen)
                         local ed = ESP_Objects[gen]
                         if prog == "DONE" then
-                            txt.Text = "DONE"
-                            txt.Color = ESP_Settings.DoneColor
-                            if ed and ed.Highlight then
-                                ed.Highlight.FillColor = ESP_Settings.DoneColor
-                                ed.Highlight.OutlineColor = ESP_Settings.DoneColor
-                            end
+                            txt.Text = "DONE"; txt.Color = ESP_Settings.DoneColor
+                            if ed and ed.Highlight then ed.Highlight.FillColor = ESP_Settings.DoneColor; ed.Highlight.OutlineColor = ESP_Settings.DoneColor end
                         else
-                            txt.Text = prog .. "%"
-                            txt.Color = ESP_Settings.TextColor
-                            if ed and ed.Highlight then
-                                ed.Highlight.FillColor = ESP_Settings.GeneratorColor
-                                ed.Highlight.OutlineColor = ESP_Settings.GeneratorColor
-                            end
+                            txt.Text = prog .. "%"; txt.Color = ESP_Settings.TextColor
+                            if ed and ed.Highlight then ed.Highlight.FillColor = ESP_Settings.GeneratorColor; ed.Highlight.OutlineColor = ESP_Settings.GeneratorColor end
                         end
                     end
                 else
                     txt.Visible = false
                 end
-            else
-                txt:Remove()
-                GeneratorTexts[gen] = nil
-                GeneratorData[gen] = nil
             end
         end
-    end)
-    table.insert(ESP_Connections, renderConn)
+    end))
 
-    local addedConn = Players.PlayerAdded:Connect(function(player)
-        player.CharacterAdded:Connect(function()
-            task.wait(1)
-            if ESP_Active then
-                addPlayerESP(player)
-            end
-        end)
-    end)
-    table.insert(ESP_Connections, addedConn)
-    
-    local removingConn = Players.PlayerRemoving:Connect(function(player)
-        if player.Character and ESP_Objects[player.Character] then
-            local data = ESP_Objects[player.Character]
-            if data.Highlight then 
-                data.Highlight:Destroy() 
-            end
-            ESP_Objects[player.Character] = nil
-        end
-        PlayerRoleCache[player] = nil
-    end)
-    table.insert(ESP_Connections, removingConn)
-
-    scanPlayers()
-    scanWorkspaceStatic()
-
-    task.spawn(function()
+    -- Loop Update Role Player (Jarang jalan, sangat ringan)
+    table.insert(ESP_Connections, task.spawn(function()
         while ESP_Active do
-            task.wait(PLAYER_SCAN_INTERVAL)
+            task.wait(2)
             if ESP_Active then
-                scanPlayers()
-                updatePlayerRoles()
+                for _, player in ipairs(Players:GetPlayers()) do
+                    if player ~= LocalPlayer and player.Character and not ESP_Objects[player.Character] then
+                        addPlayerESP(player)
+                    end
+                end
+                local now = os.clock()
+                for _, data in pairs(ESP_Objects) do
+                    if data.Player then
+                        local cache = PlayerRoleCache[data.Player]
+                        if not cache or now - cache.t >= 2 then
+                            local role = detectRole(data.Player)
+                            PlayerRoleCache[data.Player] = { role = role, t = now }
+                            local color = roleToColor(role)
+                            if data.Highlight and data.Highlight.FillColor ~= color then
+                                data.Highlight.FillColor = color; data.Highlight.OutlineColor = color
+                            end
+                        end
+                    end
+                end
             end
         end
-    end)
-
-    task.spawn(function()
-        while ESP_Active do
-            task.wait(STATIC_SCAN_INTERVAL)
-            if ESP_Active then
-                scanWorkspaceStatic()
-            end
-        end
-    end)
+    end))
     
-    ShowNotification("ESP", "ESP Enabled")
+    ShowNotification("ESP", "ESP Enabled (Optimized)")
 end
 
 EspToggleBtn.MouseButton1Click:Connect(function()
